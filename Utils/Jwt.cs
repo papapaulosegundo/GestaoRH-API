@@ -39,6 +39,34 @@ public static class Jwt
         return tokenHandler.WriteToken(token);
     }
 
+    public static string GenerateFuncionarioToken(Models.Funcionario funcionario, IConfiguration config, int expireMinutes = 60)
+    {
+        var key = Encoding.UTF8.GetBytes(GetSecretKey(config));
+        var tokenHandler = new JwtSecurityTokenHandler();
+
+        var claims = new[]
+        {
+            new Claim("Id",       funcionario.Id.ToString()),
+            new Claim("Cpf",      funcionario.Cpf),
+            new Claim("Nome",     funcionario.Nome),
+            new Claim("Email",    funcionario.Email),
+            new Claim("SetorId",  funcionario.SetorId.ToString()),
+            new Claim("Perfil",   "funcionario")
+        };
+
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Expires = DateTime.UtcNow.AddMinutes(expireMinutes),
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(key),
+                SecurityAlgorithms.HmacSha256Signature)
+        };
+
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        return tokenHandler.WriteToken(token);
+    }
+
     public static ClaimsPrincipal? ValidateToken(string token, IConfiguration config)
     {
         var key = Encoding.UTF8.GetBytes(GetSecretKey(config));

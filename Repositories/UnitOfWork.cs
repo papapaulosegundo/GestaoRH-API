@@ -9,7 +9,9 @@ public sealed class UnitOfWork : IUnitOfWork
     private IDbTransaction _transaction;
     private bool _disposed;
 
-    private IEmpresaRepository? _empresaRepository;
+    private IEmpresaRepository?     _empresaRepository;
+    private ISetorRepository?       _setorRepository;
+    private IFuncionarioRepository? _funcionarioRepository;
 
     public UnitOfWork(IConfiguration configuration)
     {
@@ -19,8 +21,9 @@ public sealed class UnitOfWork : IUnitOfWork
         _transaction = _connection.BeginTransaction();
     }
 
-    public IEmpresaRepository EmpresaRepository =>
-        _empresaRepository ??= new EmpresaRepository(_transaction);
+    public IEmpresaRepository     EmpresaRepository     => _empresaRepository     ??= new EmpresaRepository(_transaction);
+    public ISetorRepository       SetorRepository       => _setorRepository       ??= new SetorRepository(_transaction);
+    public IFuncionarioRepository FuncionarioRepository => _funcionarioRepository ??= new FuncionarioRepository(_transaction);
 
     public async Task CommitAsync()
     {

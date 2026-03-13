@@ -22,6 +22,8 @@ builder.Services.AddOpenApi();
 // ── Injeção de dependência ──────────────────────────────────────────────────
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<EmpresaService>();
+builder.Services.AddScoped<SetorService>();
+builder.Services.AddScoped<FuncionarioService>();
 
 // ── Build ───────────────────────────────────────────────────────────────────
 var app = builder.Build();
