@@ -21,10 +21,6 @@ public class FuncionarioController : ControllerBase
         _config             = config;
     }
 
-    /// <summary>
-    /// Cadastra um novo funcionário — apenas RH (requer token).
-    /// Retorna dados incluindo a senha temporária gerada automaticamente.
-    /// </summary>
     [HttpPost("cadastrar")]
     public async Task<IActionResult> Cadastrar([FromBody] FuncionarioCadastroDto dto)
     {
@@ -33,23 +29,15 @@ public class FuncionarioController : ControllerBase
             if (dto is null) return BadRequest("Body vazio.");
             var funcionario = await _funcionarioService.Cadastrar(dto);
             await _uof.CommitAsync();
-
-            // Retorna RhResponse para que o RH veja a senha temporária
-            return CreatedAtAction(
-                nameof(ObterPorId),
-                new { id = funcionario.Id },
+            return CreatedAtAction(nameof(ObterPorId), new { id = funcionario.Id },
                 FuncionarioService.ToRhResponse(funcionario));
         }
-        catch (ArgumentException ex)          { return BadRequest(ex.Message); }
-        catch (InvalidOperationException ex)  { return Conflict(ex.Message); }
-        catch (KeyNotFoundException ex)       { return NotFound(ex.Message); }
-        catch (Exception ex)                  { return StatusCode(500, ex.Message); }
+        catch (ArgumentException ex)         { return BadRequest(ex.Message); }
+        catch (InvalidOperationException ex) { return Conflict(ex.Message); }
+        catch (KeyNotFoundException ex)      { return NotFound(ex.Message); }
+        catch (Exception ex)                 { return StatusCode(500, ex.Message); }
     }
 
-    /// <summary>
-    /// Login do funcionário pelo CPF — retorna JWT.
-    /// Rota pública (liberada no middleware).
-    /// </summary>
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] FuncionarioLoginDto dto)
     {
@@ -57,7 +45,6 @@ public class FuncionarioController : ControllerBase
         {
             if (dto is null) return BadRequest("Body vazio.");
             var funcionario = await _funcionarioService.Login(dto.Cpf, dto.Senha);
-
             return Ok(new
             {
                 Funcionario  = FuncionarioService.ToResponse(funcionario),
@@ -69,7 +56,6 @@ public class FuncionarioController : ControllerBase
         catch (Exception ex)                   { return StatusCode(500, ex.Message); }
     }
 
-    /// <summary>Troca senha do funcionário (requer token)</summary>
     [HttpPatch("{id:int}/trocar-senha")]
     public async Task<IActionResult> TrocarSenha(int id, [FromBody] FuncionarioTrocarSenhaDto dto)
     {
@@ -86,16 +72,14 @@ public class FuncionarioController : ControllerBase
         catch (Exception ex)                   { return StatusCode(500, ex.Message); }
     }
 
-    /// <summary>Lista todos os funcionários ativos — apenas RH</summary>
+    /// <summary>Lista TODOS os funcionários (ativos + inativos) — tela de gestão RH</summary>
     [HttpGet]
     public async Task<IActionResult> Listar()
     {
-        var lista = await _funcionarioService.Listar();
-        // RH vê a senha temporária na listagem
+        var lista = await _funcionarioService.ListarTodos();
         return Ok(lista.Select(FuncionarioService.ToRhResponse));
     }
 
-    /// <summary>Lista funcionários de um setor — apenas RH</summary>
     [HttpGet("setor/{setorId:int}")]
     public async Task<IActionResult> ListarPorSetor(int setorId)
     {
@@ -103,7 +87,6 @@ public class FuncionarioController : ControllerBase
         return Ok(lista.Select(FuncionarioService.ToRhResponse));
     }
 
-    /// <summary>Busca funcionário por ID</summary>
     [HttpGet("{id:int}")]
     public async Task<IActionResult> ObterPorId(int id)
     {
@@ -115,7 +98,6 @@ public class FuncionarioController : ControllerBase
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
     }
 
-    /// <summary>Atualiza dados do funcionário — RH</summary>
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Atualizar(int id, [FromBody] FuncionarioAtualizarDto dto)
     {
@@ -124,7 +106,7 @@ public class FuncionarioController : ControllerBase
             if (dto is null) return BadRequest("Body vazio.");
             var funcionario = await _funcionarioService.Atualizar(id, dto);
             await _uof.CommitAsync();
-            return Ok(FuncionarioService.ToResponse(funcionario));
+            return Ok(FuncionarioService.ToRhResponse(funcionario));
         }
         catch (KeyNotFoundException ex)       { return NotFound(ex.Message); }
         catch (InvalidOperationException ex)  { return Conflict(ex.Message); }
@@ -132,7 +114,6 @@ public class FuncionarioController : ControllerBase
         catch (Exception ex)                  { return StatusCode(500, ex.Message); }
     }
 
-    /// <summary>Desativa funcionário — RH</summary>
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Desativar(int id)
     {

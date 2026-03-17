@@ -15,18 +15,25 @@ public class SetorController : ControllerBase
     public SetorController(SetorService setorService, IUnitOfWork uof)
     {
         _setorService = setorService;
-        _uof          = uof;
+        _uof = uof;
     }
 
-    /// <summary>Lista todos os setores ativos (usado no async select do front)</summary>
+    /// <summary>Lista setores ATIVOS (para selects do front)</summary>
     [HttpGet]
     public async Task<IActionResult> Listar()
     {
-        var setores = await _setorService.Listar();
-        return Ok(setores.Select(SetorService.ToResponse));
+        var lista = await _setorService.Listar();
+        return Ok(lista.Select(SetorService.ToResponse));
     }
 
-    /// <summary>Busca setor por ID</summary>
+    /// <summary>Lista TODOS os setores (ativos e inativos) — tela de gestão</summary>
+    [HttpGet("todos")]
+    public async Task<IActionResult> ListarTodos()
+    {
+        var lista = await _setorService.ListarTodos();
+        return Ok(lista.Select(SetorService.ToResponse));
+    }
+
     [HttpGet("{id:int}")]
     public async Task<IActionResult> ObterPorId(int id)
     {
@@ -38,7 +45,6 @@ public class SetorController : ControllerBase
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
     }
 
-    /// <summary>Cadastra novo setor (RH)</summary>
     [HttpPost]
     public async Task<IActionResult> Cadastrar([FromBody] SetorCadastroDto dto)
     {
@@ -49,12 +55,11 @@ public class SetorController : ControllerBase
             await _uof.CommitAsync();
             return CreatedAtAction(nameof(ObterPorId), new { id = setor.Id }, SetorService.ToResponse(setor));
         }
-        catch (ArgumentException ex)          { return BadRequest(ex.Message); }
-        catch (InvalidOperationException ex)  { return Conflict(ex.Message); }
-        catch (Exception ex)                  { return StatusCode(500, ex.Message); }
+        catch (ArgumentException ex)        { return BadRequest(ex.Message); }
+        catch (InvalidOperationException ex) { return Conflict(ex.Message); }
+        catch (Exception ex)                 { return StatusCode(500, ex.Message); }
     }
 
-    /// <summary>Atualiza setor (RH)</summary>
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Atualizar(int id, [FromBody] SetorAtualizarDto dto)
     {
@@ -65,12 +70,11 @@ public class SetorController : ControllerBase
             await _uof.CommitAsync();
             return Ok(SetorService.ToResponse(setor));
         }
-        catch (KeyNotFoundException ex)       { return NotFound(ex.Message); }
-        catch (InvalidOperationException ex)  { return Conflict(ex.Message); }
-        catch (Exception ex)                  { return StatusCode(500, ex.Message); }
+        catch (KeyNotFoundException ex)      { return NotFound(ex.Message); }
+        catch (InvalidOperationException ex) { return Conflict(ex.Message); }
+        catch (Exception ex)                 { return StatusCode(500, ex.Message); }
     }
 
-    /// <summary>Desativa setor (RH)</summary>
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Desativar(int id)
     {

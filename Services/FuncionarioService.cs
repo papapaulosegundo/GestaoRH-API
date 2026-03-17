@@ -14,14 +14,8 @@ public class FuncionarioService
     private static readonly HashSet<string> TurnosValidos = new(StringComparer.OrdinalIgnoreCase)
         { "matutino", "vespertino", "noturno" };
 
-    public FuncionarioService(IUnitOfWork uof)
-    {
-        _uof = uof;
-    }
+    public FuncionarioService(IUnitOfWork uof) => _uof = uof;
 
-    // ─── Geração de senha temporária ────────────────────────────────────────
-    // Regra: 4 primeiros dígitos do CPF + "senha#"
-    // Ex: CPF 123.456.789-00  →  senha "1234senha#"
     private static string GerarSenhaTemporaria(string cpf)
     {
         var soDigitos = new string(cpf.Where(char.IsDigit).ToArray());
@@ -29,52 +23,46 @@ public class FuncionarioService
         return $"{prefixo}senha#";
     }
 
-    // ─── Cadastro ────────────────────────────────────────────────────────────
     public async Task<Funcionario> Cadastrar(FuncionarioCadastroDto dto)
     {
-        // Validações básicas
-        if (string.IsNullOrWhiteSpace(dto.Cpf)   ||
-            string.IsNullOrWhiteSpace(dto.Nome)   ||
-            string.IsNullOrWhiteSpace(dto.Email)  ||
+        if (string.IsNullOrWhiteSpace(dto.Cpf)  ||
+            string.IsNullOrWhiteSpace(dto.Nome)  ||
+            string.IsNullOrWhiteSpace(dto.Email) ||
             dto.SetorId <= 0)
-            throw new ArgumentException("CPF, Nome, Email e Setor são obrigatórios.");
+            throw new ArgumentException("CPF, Nome, Email e Setor sao obrigatorios.");
 
         if (!GenerosValidos.Contains(dto.Genero))
-            throw new ArgumentException("Gênero inválido. Use: masculino, feminino ou sem_genero.");
+            throw new ArgumentException("Genero invalido. Use: masculino, feminino ou sem_genero.");
 
         if (!TurnosValidos.Contains(dto.Turno))
-            throw new ArgumentException("Turno inválido. Use: matutino, vespertino ou noturno.");
+            throw new ArgumentException("Turno invalido. Use: matutino, vespertino ou noturno.");
 
-        // CPF duplicado?
-        var cpfExiste = await _uof.FuncionarioRepository.ObterPorCpfAsync(dto.Cpf);
+        // Valida duplicidade apenas entre ATIVOS
+        var cpfExiste = await _uof.FuncionarioRepository.ObterPorCpfAtivoAsync(dto.Cpf);
         if (cpfExiste != null)
-            throw new InvalidOperationException("CPF já cadastrado.");
+            throw new InvalidOperationException("CPF ja cadastrado por um funcionario ativo.");
 
-        // Email duplicado?
-        var emailExiste = await _uof.FuncionarioRepository.ObterPorEmailAsync(dto.Email);
+        var emailExiste = await _uof.FuncionarioRepository.ObterPorEmailAtivoAsync(dto.Email);
         if (emailExiste != null)
-            throw new InvalidOperationException("E-mail já cadastrado.");
+            throw new InvalidOperationException("E-mail ja cadastrado por um funcionario ativo.");
 
-        // Setor existe?
         var setor = await _uof.SetorRepository.ObterPorIdAsync(dto.SetorId);
         if (setor == null)
-            throw new KeyNotFoundException("Setor informado não encontrado.");
+            throw new KeyNotFoundException("Setor informado nao encontrado.");
 
-        // Gera senha temporária
         var senhaTemp = GerarSenhaTemporaria(dto.Cpf);
-        var senhaHash = BCrypt.Net.BCrypt.HashPassword(senhaTemp);
 
         var funcionario = new Funcionario
         {
             Cpf              = dto.Cpf,
             Nome             = dto.Nome,
-            Telefone         = dto.Telefone,
+            Telefone         = dto.Telefone ?? string.Empty,
             Email            = dto.Email,
             Genero           = dto.Genero.ToLower(),
             Turno            = dto.Turno.ToLower(),
             SetorId          = dto.SetorId,
-            SenhaTemporaria  = senhaTemp,   // texto claro — visível só para RH
-            Senha            = senhaHash,
+            SenhaTemporaria  = senhaTemp,
+            Senha            = BCrypt.Net.BCrypt.HashPassword(senhaTemp),
             SenhaTrocada     = false,
             Ativo            = true,
             CriadoEm        = DateTime.UtcNow
@@ -82,28 +70,29 @@ public class FuncionarioService
 
         var id = await _uof.FuncionarioRepository.CriarAsync(funcionario);
         return await _uof.FuncionarioRepository.ObterPorIdAsync(id)
-               ?? throw new Exception("Falha ao recuperar funcionário após cadastro.");
+               ?? throw new Exception("Falha ao recuperar funcionario apos cadastro.");
     }
 
-    // ─── Login pelo CPF ──────────────────────────────────────────────────────
     public async Task<Funcionario> Login(string cpf, string senha)
     {
-        var funcionario = await _uof.FuncionarioRepository.ObterPorCpfAsync(cpf);
+        // Login: busca sem filtro de ativo para dar mensagem correta
+        var todos = await _uof.FuncionarioRepository.ListarTodosAsync();
+        var funcionario = todos.FirstOrDefault(f =>
+            f.Cpf == cpf || f.Cpf == cpf.Replace(".", "").Replace("-", ""));
 
         if (funcionario == null || !funcionario.Ativo)
-            throw new UnauthorizedAccessException("CPF ou senha inválidos.");
+            throw new UnauthorizedAccessException("CPF ou senha invalidos.");
 
         if (!BCrypt.Net.BCrypt.Verify(senha, funcionario.Senha))
-            throw new UnauthorizedAccessException("CPF ou senha inválidos.");
+            throw new UnauthorizedAccessException("CPF ou senha invalidos.");
 
         return funcionario;
     }
 
-    // ─── Troca de senha pelo próprio funcionário ─────────────────────────────
     public async Task TrocarSenha(int id, FuncionarioTrocarSenhaDto dto)
     {
         var funcionario = await _uof.FuncionarioRepository.ObterPorIdAsync(id)
-                          ?? throw new KeyNotFoundException("Funcionário não encontrado.");
+                          ?? throw new KeyNotFoundException("Funcionario nao encontrado.");
 
         if (!BCrypt.Net.BCrypt.Verify(dto.SenhaAtual, funcionario.Senha))
             throw new UnauthorizedAccessException("Senha atual incorreta.");
@@ -111,49 +100,50 @@ public class FuncionarioService
         if (string.IsNullOrWhiteSpace(dto.NovaSenha) || dto.NovaSenha.Length < 6)
             throw new ArgumentException("A nova senha deve ter pelo menos 6 caracteres.");
 
-        var novoHash = BCrypt.Net.BCrypt.HashPassword(dto.NovaSenha);
-        await _uof.FuncionarioRepository.AtualizarSenhaAsync(id, novoHash);
+        await _uof.FuncionarioRepository.AtualizarSenhaAsync(id, BCrypt.Net.BCrypt.HashPassword(dto.NovaSenha));
     }
 
-    // ─── Consultas ───────────────────────────────────────────────────────────
     public async Task<Funcionario> ObterPorId(int id)
-    {
-        return await _uof.FuncionarioRepository.ObterPorIdAsync(id)
-               ?? throw new KeyNotFoundException("Funcionário não encontrado.");
-    }
+        => await _uof.FuncionarioRepository.ObterPorIdAsync(id)
+           ?? throw new KeyNotFoundException("Funcionario nao encontrado.");
 
+    // Apenas ativos — para selects internos
     public async Task<IEnumerable<Funcionario>> Listar()
         => await _uof.FuncionarioRepository.ListarAsync();
+
+    // Todos — tela de gestão do RH
+    public async Task<IEnumerable<Funcionario>> ListarTodos()
+        => await _uof.FuncionarioRepository.ListarTodosAsync();
 
     public async Task<IEnumerable<Funcionario>> ListarPorSetor(int setorId)
         => await _uof.FuncionarioRepository.ListarPorSetorAsync(setorId);
 
-    // ─── Atualização ─────────────────────────────────────────────────────────
     public async Task<Funcionario> Atualizar(int id, FuncionarioAtualizarDto dto)
     {
         var funcionario = await _uof.FuncionarioRepository.ObterPorIdAsync(id)
-                          ?? throw new KeyNotFoundException("Funcionário não encontrado.");
+                          ?? throw new KeyNotFoundException("Funcionario nao encontrado.");
 
         if (!GenerosValidos.Contains(dto.Genero))
-            throw new ArgumentException("Gênero inválido.");
+            throw new ArgumentException("Genero invalido.");
 
         if (!TurnosValidos.Contains(dto.Turno))
-            throw new ArgumentException("Turno inválido.");
+            throw new ArgumentException("Turno invalido.");
 
-        // Verifica se novo email já pertence a outro funcionário
+        // Valida email duplicado apenas entre outros ativos
         if (!string.Equals(funcionario.Email, dto.Email, StringComparison.OrdinalIgnoreCase))
         {
-            var emailExiste = await _uof.FuncionarioRepository.ObterPorEmailAsync(dto.Email);
-            if (emailExiste != null)
-                throw new InvalidOperationException("E-mail já está em uso por outro funcionário.");
+            var emailExiste = await _uof.FuncionarioRepository.ObterPorEmailAtivoAsync(dto.Email);
+            if (emailExiste != null && emailExiste.Id != id)
+                throw new InvalidOperationException("E-mail ja esta em uso por outro funcionario ativo.");
         }
 
         funcionario.Nome     = dto.Nome;
-        funcionario.Telefone = dto.Telefone;
+        funcionario.Telefone = dto.Telefone ?? string.Empty;
         funcionario.Email    = dto.Email;
         funcionario.Genero   = dto.Genero.ToLower();
         funcionario.Turno    = dto.Turno.ToLower();
         funcionario.SetorId  = dto.SetorId;
+        funcionario.Ativo    = dto.Ativo;
 
         await _uof.FuncionarioRepository.AtualizarAsync(funcionario);
         return funcionario;
@@ -162,12 +152,10 @@ public class FuncionarioService
     public async Task Desativar(int id)
     {
         _ = await _uof.FuncionarioRepository.ObterPorIdAsync(id)
-            ?? throw new KeyNotFoundException("Funcionário não encontrado.");
-
+            ?? throw new KeyNotFoundException("Funcionario nao encontrado.");
         await _uof.FuncionarioRepository.DesativarAsync(id);
     }
 
-    // ─── Mapeamento para DTO ─────────────────────────────────────────────────
     public static FuncionarioResponseDto ToResponse(Funcionario f) => new()
     {
         Id           = f.Id,
@@ -184,21 +172,20 @@ public class FuncionarioService
         CriadoEm    = f.CriadoEm
     };
 
-    /// <summary>Inclui senha temporária em texto — somente para o RH</summary>
     public static FuncionarioRhResponseDto ToRhResponse(Funcionario f) => new()
     {
-        Id               = f.Id,
-        Cpf              = f.Cpf,
-        Nome             = f.Nome,
-        Telefone         = f.Telefone,
-        Email            = f.Email,
-        Genero           = f.Genero,
-        Turno            = f.Turno,
-        SetorId          = f.SetorId,
-        NomeSetor        = f.NomeSetor,
-        SenhaTrocada     = f.SenhaTrocada,
-        Ativo            = f.Ativo,
-        CriadoEm        = f.CriadoEm,
-        SenhaTemporaria  = f.SenhaTemporaria
+        Id              = f.Id,
+        Cpf             = f.Cpf,
+        Nome            = f.Nome,
+        Telefone        = f.Telefone,
+        Email           = f.Email,
+        Genero          = f.Genero,
+        Turno           = f.Turno,
+        SetorId         = f.SetorId,
+        NomeSetor       = f.NomeSetor,
+        SenhaTrocada    = f.SenhaTrocada,
+        Ativo           = f.Ativo,
+        CriadoEm       = f.CriadoEm,
+        SenhaTemporaria = f.SenhaTemporaria
     };
 }

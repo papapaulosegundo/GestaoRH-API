@@ -14,23 +14,22 @@ public class FuncionarioRepository : IFuncionarioRepository
         _transaction = transaction;
     }
 
-    // Fragmento de SELECT reutilizado
     private const string SelectBase = @"
         SELECT
-            f.id                  AS ""Id"",
-            f.cpf                 AS ""Cpf"",
-            f.nome                AS ""Nome"",
-            f.telefone            AS ""Telefone"",
-            f.email               AS ""Email"",
-            f.genero              AS ""Genero"",
-            f.turno               AS ""Turno"",
-            f.setor_id            AS ""SetorId"",
-            s.nome                AS ""NomeSetor"",
-            f.senha_temporaria    AS ""SenhaTemporaria"",
-            f.senha               AS ""Senha"",
-            f.senha_trocada       AS ""SenhaTrocada"",
-            f.ativo               AS ""Ativo"",
-            f.criado_em           AS ""CriadoEm""
+            f.id               AS ""Id"",
+            f.cpf              AS ""Cpf"",
+            f.nome             AS ""Nome"",
+            f.telefone         AS ""Telefone"",
+            f.email            AS ""Email"",
+            f.genero           AS ""Genero"",
+            f.turno            AS ""Turno"",
+            f.setor_id         AS ""SetorId"",
+            s.nome             AS ""NomeSetor"",
+            f.senha_temporaria AS ""SenhaTemporaria"",
+            f.senha            AS ""Senha"",
+            f.senha_trocada    AS ""SenhaTrocada"",
+            f.ativo            AS ""Ativo"",
+            f.criado_em        AS ""CriadoEm""
         FROM funcionario f
         LEFT JOIN setor s ON s.id = f.setor_id";
 
@@ -59,16 +58,18 @@ public class FuncionarioRepository : IFuncionarioRepository
             sql, new { Id = id }, transaction: _transaction);
     }
 
-    public async Task<Funcionario?> ObterPorCpfAsync(string cpf)
+    // Busca CPF apenas entre ativos (para validar duplicidade no cadastro)
+    public async Task<Funcionario?> ObterPorCpfAtivoAsync(string cpf)
     {
-        var sql = SelectBase + " WHERE f.cpf = @Cpf";
+        var sql = SelectBase + " WHERE f.cpf = @Cpf AND f.ativo = true";
         return await Connection.QueryFirstOrDefaultAsync<Funcionario>(
             sql, new { Cpf = cpf }, transaction: _transaction);
     }
 
-    public async Task<Funcionario?> ObterPorEmailAsync(string email)
+    // Busca email apenas entre ativos (para validar duplicidade)
+    public async Task<Funcionario?> ObterPorEmailAtivoAsync(string email)
     {
-        var sql = SelectBase + " WHERE f.email = @Email";
+        var sql = SelectBase + " WHERE f.email = @Email AND f.ativo = true";
         return await Connection.QueryFirstOrDefaultAsync<Funcionario>(
             sql, new { Email = email }, transaction: _transaction);
     }
@@ -77,13 +78,13 @@ public class FuncionarioRepository : IFuncionarioRepository
     {
         const string sql = @"
             UPDATE funcionario
-            SET
-                nome     = @Nome,
+            SET nome     = @Nome,
                 telefone = @Telefone,
                 email    = @Email,
                 genero   = @Genero,
                 turno    = @Turno,
-                setor_id = @SetorId
+                setor_id = @SetorId,
+                ativo    = @Ativo
             WHERE id = @Id";
 
         await Connection.ExecuteAsync(sql, funcionario, transaction: _transaction);
@@ -105,9 +106,17 @@ public class FuncionarioRepository : IFuncionarioRepository
         await Connection.ExecuteAsync(sql, new { Id = id }, transaction: _transaction);
     }
 
+    // Apenas ativos — para selects internos
     public async Task<IEnumerable<Funcionario>> ListarAsync()
     {
         var sql = SelectBase + " WHERE f.ativo = true ORDER BY f.nome";
+        return await Connection.QueryAsync<Funcionario>(sql, transaction: _transaction);
+    }
+
+    // Todos (ativos + inativos) — tela de gestão RH
+    public async Task<IEnumerable<Funcionario>> ListarTodosAsync()
+    {
+        var sql = SelectBase + " ORDER BY f.ativo DESC, f.nome";
         return await Connection.QueryAsync<Funcionario>(sql, transaction: _transaction);
     }
 

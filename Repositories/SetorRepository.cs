@@ -27,30 +27,22 @@ public class SetorRepository : ISetorRepository
     public async Task<Setor?> ObterPorIdAsync(int id)
     {
         const string sql = @"
-            SELECT
-                id         AS ""Id"",
-                nome       AS ""Nome"",
-                descricao  AS ""Descricao"",
-                ativo      AS ""Ativo"",
-                criado_em  AS ""CriadoEm""
-            FROM setor
-            WHERE id = @Id";
+            SELECT id AS ""Id"", nome AS ""Nome"", descricao AS ""Descricao"",
+                   ativo AS ""Ativo"", criado_em AS ""CriadoEm""
+            FROM setor WHERE id = @Id";
 
         return await Connection.QueryFirstOrDefaultAsync<Setor>(
             sql, new { Id = id }, transaction: _transaction);
     }
 
-    public async Task<Setor?> ObterPorNomeAsync(string nome)
+    // Busca setor ativo pelo nome (para validar duplicidade apenas entre ativos)
+    public async Task<Setor?> ObterPorNomeAtivoAsync(string nome)
     {
         const string sql = @"
-            SELECT
-                id         AS ""Id"",
-                nome       AS ""Nome"",
-                descricao  AS ""Descricao"",
-                ativo      AS ""Ativo"",
-                criado_em  AS ""CriadoEm""
+            SELECT id AS ""Id"", nome AS ""Nome"", descricao AS ""Descricao"",
+                   ativo AS ""Ativo"", criado_em AS ""CriadoEm""
             FROM setor
-            WHERE LOWER(nome) = LOWER(@Nome)";
+            WHERE LOWER(nome) = LOWER(@Nome) AND ativo = true";
 
         return await Connection.QueryFirstOrDefaultAsync<Setor>(
             sql, new { Nome = nome }, transaction: _transaction);
@@ -60,7 +52,7 @@ public class SetorRepository : ISetorRepository
     {
         const string sql = @"
             UPDATE setor
-            SET nome = @Nome, descricao = @Descricao
+            SET nome = @Nome, descricao = @Descricao, ativo = @Ativo
             WHERE id = @Id";
 
         await Connection.ExecuteAsync(sql, setor, transaction: _transaction);
@@ -72,18 +64,27 @@ public class SetorRepository : ISetorRepository
         await Connection.ExecuteAsync(sql, new { Id = id }, transaction: _transaction);
     }
 
+    // Lista apenas ativos (para selects do front)
     public async Task<IEnumerable<Setor>> ListarAsync()
     {
         const string sql = @"
-            SELECT
-                id         AS ""Id"",
-                nome       AS ""Nome"",
-                descricao  AS ""Descricao"",
-                ativo      AS ""Ativo"",
-                criado_em  AS ""CriadoEm""
+            SELECT id AS ""Id"", nome AS ""Nome"", descricao AS ""Descricao"",
+                   ativo AS ""Ativo"", criado_em AS ""CriadoEm""
             FROM setor
             WHERE ativo = true
             ORDER BY nome";
+
+        return await Connection.QueryAsync<Setor>(sql, transaction: _transaction);
+    }
+
+    // Lista todos (ativos e inativos) — para a tela de gestão
+    public async Task<IEnumerable<Setor>> ListarTodosAsync()
+    {
+        const string sql = @"
+            SELECT id AS ""Id"", nome AS ""Nome"", descricao AS ""Descricao"",
+                   ativo AS ""Ativo"", criado_em AS ""CriadoEm""
+            FROM setor
+            ORDER BY ativo DESC, nome";
 
         return await Connection.QueryAsync<Setor>(sql, transaction: _transaction);
     }
