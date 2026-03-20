@@ -9,6 +9,7 @@ public class FuncionarioCadastroDto
     public string Genero   { get; set; } = string.Empty;
     public string Turno    { get; set; } = string.Empty;
     public int    SetorId  { get; set; }
+    public bool   IsChefe  { get; set; } = false;
 }
 
 public class FuncionarioAtualizarDto
@@ -19,7 +20,8 @@ public class FuncionarioAtualizarDto
     public string Genero   { get; set; } = string.Empty;
     public string Turno    { get; set; } = string.Empty;
     public int    SetorId  { get; set; }
-    public bool   Ativo    { get; set; } = true;   // permite ativar/desativar via edição
+    public bool   IsChefe  { get; set; } = false;
+    public bool   Ativo    { get; set; } = true;
 }
 
 public class FuncionarioLoginDto
@@ -46,6 +48,7 @@ public class FuncionarioResponseDto
     public int      SetorId      { get; set; }
     public string?  NomeSetor    { get; set; }
     public bool     SenhaTrocada { get; set; }
+    public bool     IsChefe      { get; set; }
     public bool     Ativo        { get; set; }
     public DateTime CriadoEm    { get; set; }
 }

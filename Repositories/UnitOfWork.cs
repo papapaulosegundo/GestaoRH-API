@@ -5,18 +5,21 @@ namespace GestaoRH.Repositories;
 
 public sealed class UnitOfWork : IUnitOfWork
 {
-    private IDbConnection _connection;
+    private readonly string _connStr;
+    private IDbConnection  _connection;
     private IDbTransaction _transaction;
     private bool _disposed;
 
     private IEmpresaRepository?     _empresaRepository;
     private ISetorRepository?       _setorRepository;
     private IFuncionarioRepository? _funcionarioRepository;
+    private IModeloRepository?      _modeloRepository;
 
     public UnitOfWork(IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
-        _connection = new NpgsqlConnection(connectionString);
+        _connStr = configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("ConnectionString nao configurada.");
+        _connection = new NpgsqlConnection(_connStr);
         _connection.Open();
         _transaction = _connection.BeginTransaction();
     }
@@ -24,51 +27,38 @@ public sealed class UnitOfWork : IUnitOfWork
     public IEmpresaRepository     EmpresaRepository     => _empresaRepository     ??= new EmpresaRepository(_transaction);
     public ISetorRepository       SetorRepository       => _setorRepository       ??= new SetorRepository(_transaction);
     public IFuncionarioRepository FuncionarioRepository => _funcionarioRepository ??= new FuncionarioRepository(_transaction);
+    public IModeloRepository      ModeloRepository      => _modeloRepository      ??= new ModeloRepository(_transaction);
 
     public async Task CommitAsync()
     {
-        try
-        {
-            await ((NpgsqlTransaction)_transaction).CommitAsync();
-        }
-        catch
-        {
-            await ((NpgsqlTransaction)_transaction).RollbackAsync();
-            throw;
-        }
+        try   { await ((NpgsqlTransaction)_transaction).CommitAsync(); }
+        catch { await ((NpgsqlTransaction)_transaction).RollbackAsync(); throw; }
         finally
         {
             _transaction.Dispose();
+            _empresaRepository = null; _setorRepository = null;
+            _funcionarioRepository = null; _modeloRepository = null;
+            _transaction = _connection.BeginTransaction();
         }
     }
 
     public void Rollback()
     {
-        _transaction.Rollback();
+        try { _transaction.Rollback(); } catch { }
         _transaction.Dispose();
+        _empresaRepository = null; _setorRepository = null;
+        _funcionarioRepository = null; _modeloRepository = null;
+        _transaction = _connection.BeginTransaction();
     }
 
     public void Dispose()
     {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    private void Dispose(bool disposing)
-    {
         if (!_disposed)
         {
-            if (disposing)
-            {
-                _transaction?.Dispose();
-                _connection?.Dispose();
-            }
+            try { _transaction?.Rollback(); } catch { }
+            _transaction?.Dispose();
+            _connection?.Dispose();
             _disposed = true;
         }
-    }
-
-    ~UnitOfWork()
-    {
-        Dispose(false);
     }
 }

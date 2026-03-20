@@ -9,86 +9,67 @@ namespace GestaoRH.Utils;
 public static class Jwt
 {
     private static string GetSecretKey(IConfiguration config)
-        => config["Jwt:SecretKey"]
-           ?? throw new InvalidOperationException("Jwt:SecretKey não configurada.");
+        => config["Jwt:SecretKey"] ?? throw new InvalidOperationException("Jwt:SecretKey nao configurada.");
 
     public static string GenerateToken(Empresa empresa, IConfiguration config, int expireMinutes = 60)
     {
         var key = Encoding.UTF8.GetBytes(GetSecretKey(config));
-        var tokenHandler = new JwtSecurityTokenHandler();
-
         var claims = new[]
         {
-            new Claim("Id",           empresa.Id.ToString()),
-            new Claim("Cnpj",         empresa.Cnpj),
-            new Claim("RazaoSocial",  empresa.RazaoSocial),
-            new Claim("Responsavel",  $"{empresa.ResponsavelNome} {empresa.ResponsavelSobrenome}"),
-            new Claim("Perfil",       "empresa")
+            new Claim("Id",          empresa.Id.ToString()),
+            new Claim("Cnpj",        empresa.Cnpj),
+            new Claim("RazaoSocial", empresa.RazaoSocial),
+            new Claim("Responsavel", $"{empresa.ResponsavelNome} {empresa.ResponsavelSobrenome}"),
+            new Claim("Perfil",      "empresa")
         };
-
-        var tokenDescriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(claims),
-            Expires = DateTime.UtcNow.AddMinutes(expireMinutes),
-            SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(key),
-                SecurityAlgorithms.HmacSha256Signature)
-        };
-
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-        return tokenHandler.WriteToken(token);
+        return BuildToken(claims, key, expireMinutes);
     }
 
-    public static string GenerateFuncionarioToken(Models.Funcionario funcionario, IConfiguration config, int expireMinutes = 60)
+    public static string GenerateFuncionarioToken(Funcionario f, IConfiguration config, int expireMinutes = 60)
     {
         var key = Encoding.UTF8.GetBytes(GetSecretKey(config));
-        var tokenHandler = new JwtSecurityTokenHandler();
+        // Perfil: "chefe" se is_chefe=true, senão "funcionario"
+        var perfil = f.IsChefe ? "chefe" : "funcionario";
 
         var claims = new[]
         {
-            new Claim("Id",       funcionario.Id.ToString()),
-            new Claim("Cpf",      funcionario.Cpf),
-            new Claim("Nome",     funcionario.Nome),
-            new Claim("Email",    funcionario.Email),
-            new Claim("SetorId",  funcionario.SetorId.ToString()),
-            new Claim("Perfil",   "funcionario")
+            new Claim("Id",       f.Id.ToString()),
+            new Claim("Cpf",      f.Cpf),
+            new Claim("Nome",     f.Nome),
+            new Claim("Email",    f.Email),
+            new Claim("SetorId",  f.SetorId.ToString()),
+            new Claim("IsChefe",  f.IsChefe.ToString().ToLower()),
+            new Claim("Perfil",   perfil)
         };
+        return BuildToken(claims, key, expireMinutes);
+    }
 
-        var tokenDescriptor = new SecurityTokenDescriptor
+    private static string BuildToken(Claim[] claims, byte[] key, int expireMinutes)
+    {
+        var handler = new JwtSecurityTokenHandler();
+        var descriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
             Expires = DateTime.UtcNow.AddMinutes(expireMinutes),
             SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(key),
-                SecurityAlgorithms.HmacSha256Signature)
+                new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
         };
-
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-        return tokenHandler.WriteToken(token);
+        return handler.WriteToken(handler.CreateToken(descriptor));
     }
 
     public static ClaimsPrincipal? ValidateToken(string token, IConfiguration config)
     {
         var key = Encoding.UTF8.GetBytes(GetSecretKey(config));
-        var tokenHandler = new JwtSecurityTokenHandler();
-
         try
         {
-            var principal = tokenHandler.ValidateToken(token, new TokenValidationParameters
+            return new JwtSecurityTokenHandler().ValidateToken(token, new TokenValidationParameters
             {
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
+                ValidateIssuer = false, ValidateAudience = false,
+                ValidateLifetime = true, ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(key),
                 ClockSkew = TimeSpan.Zero
             }, out _);
-
-            return principal;
         }
-        catch
-        {
-            return null;
-        }
+        catch { return null; }
     }
 }
