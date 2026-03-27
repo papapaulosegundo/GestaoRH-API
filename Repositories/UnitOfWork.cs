@@ -14,6 +14,7 @@ public sealed class UnitOfWork : IUnitOfWork
     private ISetorRepository?       _setorRepository;
     private IFuncionarioRepository? _funcionarioRepository;
     private IModeloRepository?      _modeloRepository;
+    private IDocumentoRepository?   _documentoRepository;
 
     public UnitOfWork(IConfiguration configuration)
     {
@@ -28,6 +29,7 @@ public sealed class UnitOfWork : IUnitOfWork
     public ISetorRepository       SetorRepository       => _setorRepository       ??= new SetorRepository(_transaction);
     public IFuncionarioRepository FuncionarioRepository => _funcionarioRepository ??= new FuncionarioRepository(_transaction);
     public IModeloRepository      ModeloRepository      => _modeloRepository      ??= new ModeloRepository(_transaction);
+    public IDocumentoRepository   DocumentoRepository   => _documentoRepository   ??= new DocumentoRepository(_transaction);
 
     public async Task CommitAsync()
     {
@@ -38,6 +40,7 @@ public sealed class UnitOfWork : IUnitOfWork
             _transaction.Dispose();
             _empresaRepository = null; _setorRepository = null;
             _funcionarioRepository = null; _modeloRepository = null;
+            _documentoRepository = null;
             _transaction = _connection.BeginTransaction();
         }
     }
@@ -48,6 +51,7 @@ public sealed class UnitOfWork : IUnitOfWork
         _transaction.Dispose();
         _empresaRepository = null; _setorRepository = null;
         _funcionarioRepository = null; _modeloRepository = null;
+        _documentoRepository = null;
         _transaction = _connection.BeginTransaction();
     }
 
