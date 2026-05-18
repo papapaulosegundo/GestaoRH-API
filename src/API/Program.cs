@@ -32,6 +32,7 @@ builder.Services.AddAutoMapper(typeof(Program).Assembly);
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IJwtService, GestaoRH.Infrastructure.Security.JwtService>();
 builder.Services.AddScoped<EmpresaService>();
 builder.Services.AddScoped<SetorService>();
 builder.Services.AddScoped<ModeloService>();

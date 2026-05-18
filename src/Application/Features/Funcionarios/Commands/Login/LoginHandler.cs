@@ -2,9 +2,7 @@ using AutoMapper;
 using GestaoRH.Application.Common.DTOs;
 using GestaoRH.Application.Features.Funcionarios.DTOs;
 using GestaoRH.Domain.Interfaces;
-using GestaoRH.Infrastructure.Security;
 using MediatR;
-using Microsoft.Extensions.Configuration;
 
 namespace GestaoRH.Application.Features.Funcionarios.Commands.Login;
 
@@ -12,13 +10,13 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResponseDto>
 {
     private readonly IUnitOfWork _uof;
     private readonly IMapper _mapper;
-    private readonly IConfiguration _config;
+    private readonly IJwtService _jwtService;
 
-    public LoginHandler(IUnitOfWork uof, IMapper mapper, IConfiguration config)
+    public LoginHandler(IUnitOfWork uof, IMapper mapper, IJwtService jwtService)
     {
         _uof = uof;
         _mapper = mapper;
-        _config = config;
+        _jwtService = jwtService;
     }
 
     public async Task<LoginResponseDto> Handle(LoginCommand request, CancellationToken cancellationToken)
@@ -32,7 +30,7 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResponseDto>
         {
             Funcionario = _mapper.Map<FuncionarioResponseDto>(func),
             SenhaTrocada = func.SenhaTrocada,
-            Jwt = Jwt.GenerateFuncionarioToken(func, _config)
+            Jwt = _jwtService.GenerateFuncionarioToken(func)
         };
     }
 }
