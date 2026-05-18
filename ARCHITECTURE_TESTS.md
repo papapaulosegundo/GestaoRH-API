@@ -1,53 +1,48 @@
 # Testes de Arquitetura (ArchUnitNET)
 
-Este projeto utiliza o **ArchUnitNET** para garantir que a estrutura do código siga os princípios da **Clean Architecture** e **Vertical Slice Architecture**. Os testes de arquitetura automatizam a verificação de regras de dependência entre camadas, impedindo que acoplamentos indesejados sejam introduzidos no código.
+Este projeto utiliza o **ArchUnitNET** para garantir que a estrutura do código siga rigorosamente os princípios da **Clean Architecture** e da **Vertical Slice Architecture**.
 
-## 1. Como os Testes Funcionam
+## 1. Visão Geral
 
-Os testes estão localizados na pasta `ArchitectureTests/` e utilizam o framework `ArchUnitNET.xUnit`. Eles analisam o assembly compilado do projeto e aplicam regras fluentes para validar as relações entre classes e namespaces.
+Os testes automatizados de arquitetura garantem que o design do sistema permaneça íntegro ao longo do tempo, impedindo o surgimento de "Big Ball of Mud" (grande bola de lama) e mantendo o baixo acoplamento entre funcionalidades e camadas.
 
-### Camadas Definidas (Layers)
-As camadas são mapeadas com base nos namespaces do projeto:
-*   **Domínio (`Domain`)**: `GestaoRH.Domain`
-*   **Aplicação (`Application`)**: `GestaoRH.Application`
-*   **Infraestrutura (`Infrastructure`)**: `GestaoRH.Infrastructure`
-*   **API / Apresentação (`API`)**: `GestaoRH.API`
+## 2. Regras de Clean Architecture (Camadas)
 
-## 2. Regras de Dependência (Clean Architecture)
+O sistema é dividido em camadas com responsabilidades e regras de visibilidade claras:
 
-Para manter o núcleo do negócio isolado de detalhes técnicos, as seguintes regras são impostas:
+*   **Domínio (`Domain`)**: O núcleo do negócio. Não deve depender de nenhuma outra camada.
+*   **Aplicação (`Application`)**: Orquestra a lógica de negócio. Pode depender do Domínio, mas nunca da Infraestrutura ou da API.
+*   **Infraestrutura (`Infrastructure`)**: Implementações técnicas (Banco de Dados, Segurança, Serviços Externos). Pode depender de Domínio e Aplicação, mas nunca da API.
+*   **API (Apresentação)**: Porta de entrada do sistema. Pode depender das camadas internas, mas deve ser minimalista (Clean API).
 
-1.  **Independência do Domínio**: A camada de Domínio não pode depender de nenhuma outra camada (Aplicação, Infraestrutura ou API).
-2.  **Isolamento da Aplicação**: A camada de Aplicação pode depender do Domínio, mas não pode depender da Infraestrutura ou da API.
-3.  **Isolamento da Infraestrutura**: A camada de Infraestrutura pode depender do Domínio e da Aplicação, mas nunca da API.
-4.  **API como Consumidora**: A camada de API (Apresentação) pode depender de todas as camadas inferiores para orquestrar as requisições.
+## 3. Regras de Vertical Slice (Funcionalidades)
 
-## 3. Como Executar os Testes
+Para garantir que cada funcionalidade seja independente e fácil de manter/remover, aplicamos as seguintes regras:
 
-Você pode executar os testes de arquitetura via linha de comando ou através do Test Explorer do seu IDE (Visual Studio, Rider, VS Code).
+1.  **Isolamento entre Slices**: Um slice (ex: `Funcionarios`) não deve depender de detalhes internos ou lógica de outro slice (ex: `Empresas`).
+2.  **Padronização de Nomenclatura**: Todos os Handlers do MediatR devem obrigatoriamente terminar com o sufixo `Handler`.
+3.  **Clean API (Controllers)**: Controllers não devem injetar Repositórios diretamente. Eles devem delegar o trabalho para os Handlers através do MediatR.
+
+## 4. Como Executar os Testes
+
+Os testes são baseados em **xUnit** e podem ser executados via IDE ou terminal.
 
 ### Via Terminal (dotnet CLI)
-Para rodar apenas os testes de arquitetura:
+Para executar especificamente os testes de arquitetura:
 ```bash
 dotnet test --filter "CleanArchitectureTests"
 ```
 
-Para rodar todos os testes do projeto (incluindo unitários, se houver):
-```bash
-dotnet test
-```
+### Via IDE (Visual Studio / VS Code)
+Abra o **Test Explorer** e execute os testes dentro do namespace `GestaoRH.ArchitectureTests`.
 
-## 4. O que fazer quando um teste falha?
+## 5. Resolução de Violações
 
-Se um teste de arquitetura falhar, isso geralmente significa que uma regra de dependência foi violada. 
+Quando um teste falha, o ArchUnitNET fornece um relatório detalhado de qual classe está violando qual regra.
 
-**Exemplo de falha comum:**
-> *Error: LoginHandler does depend on "GestaoRH.Infrastructure.Security.Jwt"*
-
-**Como resolver:**
-1.  **Identifique a dependência**: No exemplo acima, a camada de Aplicação está tentando usar diretamente uma classe da Infraestrutura.
-2.  **Crie uma Abstração**: Crie uma `interface` na camada de Domínio ou Aplicação.
-3.  **Inverta a Dependência (DIP)**: Faça a classe da Infraestrutura implementar essa interface e injete a interface no componente da Aplicação via construtor.
+*   **Erro de Camada**: Se a Aplicação depender da Infraestrutura, use a **Inversão de Dependência**. Crie uma `interface` no Domínio/Aplicação e implemente-a na Infraestrutura.
+*   **Erro de Slice**: Se um slice depender de outro, verifique se a lógica não deveria estar em `Common` ou se a comunicação entre slices não deveria ser feita via eventos ou comandos.
+*   **Erro de Controller**: Se um Controller falhar por injetar um Repositório, mova a lógica para um `Handler` e use o `IMediator`.
 
 ---
-*Estes testes garantem que o sistema permaneça manutenível e escalável a longo prazo.*
+*Manter estes testes passando é requisito obrigatório para a integridade do projeto.*
